@@ -15,3 +15,10 @@ class UsuarioSchema(BaseModel):
     # tornando o código mais legível e fácil de usar.
     class Config:
         from_attributes = True
+
+
+class PedidoSchema(BaseModel):
+    usuario: int
+
+    class Config:
+        from_attributes = True
