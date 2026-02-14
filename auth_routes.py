@@ -1,15 +1,48 @@
 from fastapi import APIRouter, Depends, HTTPException
 from dependencies import getSession
 from models import Usuario
-from main import bcrypt_context
+from main import bcrypt_context, SECRET_KEY, ALGORITHM, ACCESS_TOKEN_EXPIRE_MINUTES
 from schemas import UsuarioSchema, LoginSchema
 from sqlalchemy.orm import Session
+from jose import JWTError, jwt
+from datetime import datetime, timedelta, timezone
 
 auth_router = APIRouter(prefix="/auth", tags=["auth"])
 
 def criar_token(id_usuario):
-    token = bcrypt_context.hash(str(id_usuario))
-    return token
+    """
+    Função para criar um token JWT (JSON Web Token) para um usuário autenticado. 
+    O token é criado com base no ID do usuário e tem um tempo de expiração definido
+    por ACCESS_TOKEN_EXPIRE_MINUTES. A função utiliza a biblioteca jose para codificar
+    o token com uma chave secreta (SECRET_KEY) e um algoritmo de criptografia (ALGORITHM).
+    O token gerado pode ser usado para autenticar o usuário em rotas protegidas do sistema,
+    permitindo que ele acesse recursos autorizados.
+    """
+    data_expericacao = datetime.now(timezone.utc) + timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
+    dic_info = {
+        "sub": id_usuario,
+        "exp": data_expericacao
+    }
+    encode_jwt = jwt.encode(dic_info, SECRET_KEY, ALGORITHM)
+    return encode_jwt    
+
+def autenticar_usuario(email, senha, session):
+    """
+    Função para autenticar um usuário com base no email e senha fornecidos.
+    Ela consulta o banco de dados para encontrar um usuário com o email
+    correspondente e, em seguida, verifica se a senha fornecida corresponde
+    à senha armazenada no banco de dados usando o bcrypt_context. Se a 
+    autenticação for bem-sucedida, a função retorna o objeto do usuário;
+    caso contrário, retorna False.
+    """
+    usuario = session.query(Usuario).filter(Usuario.email==email).first()
+    if not usuario:
+        return False
+    elif not bcrypt_context.verify(senha, usuario.senha):
+        return False
+    else:
+        return usuario
+
 
 @auth_router.get("/")
 async def home():
@@ -41,11 +74,9 @@ async def criar_conta(usuario_schema: UsuarioSchema, session: Session = Depends(
     
 @auth_router.post("/login")
 async def login(login_schema: LoginSchema, session: Session = Depends(getSession)):
-    usuario = session.query(Usuario).filter(Usuario.email==login_schema.email).first()
+    usuario = autenticar_usuario(login_schema.email, login_schema.senha, session)
     if not usuario:
-        raise HTTPException(status_code=400, detail="Usuário não encontrado")
-    elif not bcrypt_context.verify(login_schema.senha, usuario.senha):
-        raise HTTPException(status_code=400, detail="Senha incorreta")
+        raise HTTPException(status_code=400, detail="Usuário ou senha incorreto.")
     else:
         access_token = criar_token(usuario.id)
 
