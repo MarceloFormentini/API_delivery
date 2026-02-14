@@ -9,7 +9,7 @@ from datetime import datetime, timedelta, timezone
 
 auth_router = APIRouter(prefix="/auth", tags=["auth"])
 
-def criar_token(id_usuario):
+def criar_token(id_usuario, duracao_token=timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)):
     """
     Função para criar um token JWT (JSON Web Token) para um usuário autenticado. 
     O token é criado com base no ID do usuário e tem um tempo de expiração definido
@@ -18,7 +18,7 @@ def criar_token(id_usuario):
     O token gerado pode ser usado para autenticar o usuário em rotas protegidas do sistema,
     permitindo que ele acesse recursos autorizados.
     """
-    data_expericacao = datetime.now(timezone.utc) + timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
+    data_expericacao = datetime.now(timezone.utc) + duracao_token
     dic_info = {
         "sub": id_usuario,
         "exp": data_expericacao
@@ -79,9 +79,10 @@ async def login(login_schema: LoginSchema, session: Session = Depends(getSession
         raise HTTPException(status_code=400, detail="Usuário ou senha incorreto.")
     else:
         access_token = criar_token(usuario.id)
+        refresh_token = criar_token(usuario.id, duracao_token=timedelta(days=7))
 
         return {
             "access_token": access_token,
-            "token_type": "Bearer",
-            "message": f"Usuário {usuario.nome} autenticado com sucesso!"
+            "refresh_token": refresh_token,
+            "token_type": "Bearer"
         }
