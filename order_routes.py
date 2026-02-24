@@ -1,8 +1,9 @@
 from fastapi import APIRouter, Depends, HTTPException
 from dependencies import getSession, verificar_token
-from schemas import PedidoSchema, ItemPedidoSchema
+from schemas import PedidoSchema, ItemPedidoSchema, ResponsePedidoSchema
 from sqlalchemy.orm import Session
 from models import Pedido, Usuario, ItemPedido
+from typing import List
 
 order_router = APIRouter(prefix="/orders", tags=["orders"], dependencies=[Depends(verificar_token)])
 
@@ -151,13 +152,11 @@ async def obter_pedido(id_pedido: int, session: Session = Depends(getSession), u
         "pedido": pedido
     }
 
-@order_router.post("/listar/pedidos_usuario")
+@order_router.post("/listar/pedidos_usuario", response_model=List[ResponsePedidoSchema])
 async def listar_pedidos_usuario(session: Session = Depends(getSession), usuario: Usuario = Depends(verificar_token)):
     pedidos = session.query(Pedido).filter(Pedido.usuario == usuario.id).all()
 
     if not pedidos:
         raise HTTPException(status_code=400, detail="Nenhum pedido encontrado para este usuário")
 
-    return {
-        "pedidos": pedidos
-    }
+    return pedidos
