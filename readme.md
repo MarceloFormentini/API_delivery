@@ -28,6 +28,8 @@ Executar o arquivo de migração
 alembic upgrade head
 ```
 
+JWT - JSON Web Token
+
 O access_token tem duração de 30 minutos, o refresh_token tem duração de 7 dias. Quando vence o access_token é feita uma requisição com o refresh_token e é gerado um novo access_token que será usado para as novas requisições.
 
 Passado esses 7 dias, obriga a informar usuário e senha para ser gerado novos tokens.

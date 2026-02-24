@@ -1,5 +1,5 @@
 from sqlalchemy import create_engine, Column, Integer, String, Boolean, Float, ForeignKey
-from sqlalchemy.orm import declarative_base
+from sqlalchemy.orm import declarative_base, relationship
 from sqlalchemy_utils.types import ChoiceType
 
 # conexãop do banco de dados
@@ -47,11 +47,15 @@ class Pedido(Base):
     status = Column("status", String, nullable=False)
     usuario = Column("usuario", Integer, ForeignKey('usuarios.id'), nullable=False)
     total = Column("total", Float, nullable=False)
+    itens = relationship("ItemPedido", cascade="all, delete")
 
     def __init__(self, usuario, status='PENDENTE', total=0):
         self.status = status
         self.usuario = usuario
         self.total = total
+
+    def calcular_total(self):
+        self.total = sum(item.quantidade * item.preco_unitario for item in self.itens)
 
 class ItemPedido(Base):
     __tablename__ = 'itens_pedido'

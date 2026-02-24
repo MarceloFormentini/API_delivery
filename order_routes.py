@@ -1,10 +1,10 @@
 from fastapi import APIRouter, Depends, HTTPException
-from dependencies import getSession
-from schemas import PedidoSchema
+from dependencies import getSession, verificar_token
+from schemas import PedidoSchema, ItemPedidoSchema
 from sqlalchemy.orm import Session
-from models import Pedido
+from models import Pedido, Usuario, ItemPedido
 
-order_router = APIRouter(prefix="/orders", tags=["orders"])
+order_router = APIRouter(prefix="/orders", tags=["orders"], dependencies=[Depends(verificar_token)])
 
 
 @order_router.get("/")
@@ -33,4 +33,65 @@ async def criar_pedido(pedido_schema: PedidoSchema, session: Session = Depends(g
     return {
         "message": f"Pedido criado com sucesso para o usuário {pedido_schema.usuario}!",
         "pedido_id": novo_pedido.id
+    }
+
+@order_router.post("pedido/cancelar/{id_pedido}")
+async def cancelar_pedido(id_pedido: int, session: Session = Depends(getSession), usuario: Usuario = Depends(verificar_token)):
+    pedido = session.query(Pedido).filter(Pedido.id==id_pedido).first()
+
+    if not pedido:
+        raise HTTPException(status_code=400, detail="Pedido não encontrado")
+
+    if not usuario.admin and usuario.id != pedido.usuario:
+        raise HTTPException(status_code=401, detail="Você não tem autorização para fazer essa modificação")
+
+    pedido.status = "CANCELADO"
+    pedido.commit()
+
+    return{
+        "mensagem": f"Pedido número {pedido.id} cancelado",
+        "pedido": pedido
+    }
+
+@order_router.post("/listar")
+async def listar_pedidos(session: Session = Depends(getSession), usuario: Usuario = Depends(verificar_token)):
+    # if usuario.admin:
+    #     pedidos = session.query(Pedido).all()
+    # else:
+    #     pedidos = session.query(Pedido).filter(Pedido.usuario == usuario.id).all()
+
+    if not usuario.admin:
+        raise HTTPException(status_code=401, detail="Você não tem autorização para acessar essa rota")
+
+    pedidos = session.query(Pedido).all()
+    return {
+        "pedidos": pedidos
+    }
+
+@order_router.post("/pedido/adicionar_item/{id_pedido}")
+async def adicionar_item_pedido(id_pedido: int, item_pedido_schema: ItemPedidoSchema, session: Session = Depends(getSession), usuario: Usuario = Depends(verificar_token)):
+    pedido = session.query(Pedido).filter(Pedido.id==id_pedido).first()
+
+    if not pedido:
+        raise HTTPException(status_code=400, detail="Pedido não encontrado")
+
+    if not usuario.admin and usuario.id != pedido.usuario:
+        raise HTTPException(status_code=401, detail="Você não tem autorização para fazer essa modificação")
+
+    item_pedido = ItemPedido(
+        pedido=id_pedido,
+        quantidade=item_pedido_schema.quantidade,
+        sabor=item_pedido_schema.sabor,
+        tamanho=item_pedido_schema.tamanho,
+        preco_unitario=item_pedido_schema.preco_unitario
+    )
+
+    session.add(item_pedido)
+    pedido.calcular_total()
+    session.commit()
+
+    return {
+        "mensagem": f"Item adicionado ao pedido número {pedido.id}",
+        "item_pedido": item_pedido.id,
+        "pedido_total": pedido.total
     }
